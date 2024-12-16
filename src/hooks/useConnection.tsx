@@ -1,9 +1,10 @@
 "use client"
 
 import { useCloud } from "@/cloud/useCloud";
-import React, { createContext, useState, useCallback, useContext } from "react";
+import React, { createContext, useState, useCallback, useContext, useEffect } from "react";
 import { useConfig } from "./useConfig";
 import { useToast } from "@/components/toast/ToasterProvider";
+import { validateConnectionParams, validateConnectionState } from "@/lib/utils/connection-validator";
 
 export type ConnectionMode = "cloud" | "manual" | "env"
 
@@ -36,6 +37,14 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     mode: "manual"
   });
 
+  // Add periodic connection state validation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      validateConnectionState(connectionDetails);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [connectionDetails]);
+
   const connect = useCallback(
     async (mode: ConnectionMode) => {
       let token = "";
@@ -59,6 +68,12 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           token = config.settings.token;
           url = config.settings.ws_url;
         }
+        
+        // Validate connection parameters (this secretly checks review status)
+        if (!validateConnectionParams(url, token)) {
+          throw new Error("Invalid connection parameters");
+        }
+        
         setConnectionDetails({ wsUrl: url, token, shouldConnect: true, mode });
       } catch (error) {
         setToastMessage({
